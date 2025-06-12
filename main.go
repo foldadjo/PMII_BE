@@ -11,9 +11,9 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/joho/godotenv"
-	"github.com/foldadjo/PMII_BE/config"
-	"github.com/foldadjo/PMII_BE/handlers"
-	"github.com/foldadjo/PMII_BE/middleware"
+	"PMII_BE/config"
+	"PMII_BE/handlers"
+	"PMII_BE/middleware"
 
 	"github.com/valyala/fasthttp/fasthttpadaptor"
 )

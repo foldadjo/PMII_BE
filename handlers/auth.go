@@ -1,4 +1,4 @@
-package handlers
+package handler
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/foldadjo/PMII_BE/config"
-	"github.com/foldadjo/PMII_BE/models"
+	"PMII_BE/config"
+	"PMII_BE/models"
 	"go.mongodb.org/mongo-driver/bson"
 	// "go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"

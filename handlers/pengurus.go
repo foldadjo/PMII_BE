@@ -1,13 +1,13 @@
-package handlers
+package handler
 
 import (
 	"context"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/foldadjo/PMII_BE/config"
-	"github.com/foldadjo/PMII_BE/models"
-	"github.com/foldadjo/PMII_BE/middleware"
+	"PMII_BE/config"
+	"PMII_BE/models"
+	"PMII_BE/middleware"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
