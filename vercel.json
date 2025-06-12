@@ -13,7 +13,7 @@
     }
   ],
   "env": {
-    "MONGODB_URI": "@mongodb_uri",
-    "JWT_SECRET": "@jwt_secret"
+    "MONGODB_URI": "mongodb+srv://pbpmiiit:adminpbpmiiit@cluster.lbl0pz1.mongodb.net/?retryWrites=true&w=majority&appName=Cluster",
+    "JWT_SECRET": "pmii_dev"
   }
 } 

@@ -1,6 +1,5 @@
-module github.com/jauharmaknun/PMII_BE
-
-go 1.21
+module PMII_BE
+go 1.22
 
 require (
 	github.com/gofiber/fiber/v2 v2.52.2

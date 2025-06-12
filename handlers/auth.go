@@ -10,8 +10,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/jauharmaknun/PMII_BE/config"
-	"github.com/jauharmaknun/PMII_BE/models"
+	"github.com/foldadjo/PMII_BE/config"
+	"github.com/foldadjo/PMII_BE/models"
 	"go.mongodb.org/mongo-driver/bson"
 	// "go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"

@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/jauharmaknun/PMII_BE/config"
-	"github.com/jauharmaknun/PMII_BE/models"
-	"github.com/jauharmaknun/PMII_BE/middleware"
+	"github.com/foldadjo/PMII_BE/config"
+	"github.com/foldadjo/PMII_BE/models"
+	"github.com/foldadjo/PMII_BE/middleware"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
