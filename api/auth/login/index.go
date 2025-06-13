@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"context"
@@ -28,7 +28,7 @@ func init() {
 		panic(err)
 	}
 
-	db = client.Database("your_db_name") // Ganti dengan nama database
+	db = client.Database("pmii-dev") // Ganti dengan nama database
 }
 
 func Handle(w http.ResponseWriter, r *http.Request) {

@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"context"
@@ -31,7 +31,7 @@ func init() {
 		panic(err)
 	}
 
-	db = client.Database("your_db_name") // ganti sesuai database kamu
+	db = client.Database("pmii-dev") // ganti sesuai database kamu
 }
 
 // Middleware parsing token JWT & extract claims
