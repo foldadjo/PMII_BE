@@ -7,14 +7,12 @@ import (
 	"os"
 	"time"
 
+	"github.com/foldadjo/PMII_BE/shered/models"
 	"github.com/golang-jwt/jwt/v5"
-	"golang.org/x/crypto/bcrypt"
-
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-
-	"github.com/foldadjo/PMII_BE/shered/models"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // Global MongoDB client
@@ -30,7 +28,7 @@ func init() {
 		panic(err)
 	}
 
-	db = client.Database("pmii-dev") // ganti sesuai database kamu
+	db = client.Database("pmii-dev")
 }
 
 func Handle(w http.ResponseWriter, r *http.Request) {
@@ -49,38 +47,31 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var user models.User
-	err := db.Collection("users").FindOne(context.TODO(), bson.M{"email": input.Email}).Decode(&user)
-	if err != nil {
-		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
-		return
-	}
-
-	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password))
-	if err != nil {
-		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
-		return
-	}
-
-	// Cari pengurus aktif
+	// Cari langsung di collection pengurus by email
 	var pengurus models.Pengurus
-	err = db.Collection("pengurus").FindOne(context.TODO(), bson.M{
-		"user_id": user.ID,
-		"aktif":   true,
+	err := db.Collection("pengurus").FindOne(context.TODO(), bson.M{
+		"email": input.Email,
+		"aktif": true,
 	}).Decode(&pengurus)
+
 	if err != nil {
-		http.Error(w, "User is not an active pengurus", http.StatusUnauthorized)
+		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		return
+	}
+
+	// Verifikasi password
+	err = bcrypt.CompareHashAndPassword([]byte(pengurus.PasswordHash), []byte(input.Password))
+	if err != nil {
+		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 		return
 	}
 
 	// Generate JWT
 	claims := jwt.MapClaims{
-		"user_id":          user.ID.Hex(),
-		"email":            user.Email,
-		"role":             user.Role,
-		"pengurus_level":   pengurus.Level,
-		"pengurus_jabatan": pengurus.Jabatan,
-		"exp":              time.Now().Add(24 * time.Hour).Unix(),
+		"pengurus_id": pengurus.ID.Hex(),
+		"email":       pengurus.Email,
+		"level":       pengurus.Level,
+		"exp":         time.Now().Add(24 * time.Hour).Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -90,17 +81,17 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Response
+	// Response sukses
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"token": tokenString,
-		"user": map[string]interface{}{
-			"id":              user.ID.Hex(),
-			"email":           user.Email,
-			"full_name":       user.FullName,
-			"role":            user.Role,
-			"pengurus_level":  pengurus.Level,
-			"pengurus_jabatan": pengurus.Jabatan,
+		"pengurus": map[string]interface{}{
+			"id":     pengurus.ID.Hex(),
+			"email":  pengurus.Email,
+			"level":  pengurus.Level,
+			"wilayah": pengurus.Wilayah,
+			"cabang":  pengurus.Cabang,
+			"komisariat": pengurus.Komisariat,
 		},
 	})
 }

@@ -12,9 +12,9 @@ import (
 	"github.com/foldadjo/PMII_BE/shered/models"
 	"github.com/golang-jwt/jwt/v5"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // Global MongoDB client
@@ -70,8 +70,11 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 
 	adminLevel := models.PengurusLevel(claims.PengurusLevel)
 
+	// request body struct
 	var input struct {
-		UserID       string  `json:"user_id"`
+		Email        string  `json:"email"`
+		Password     string  `json:"password"`
+		NoTelp       *string `json:"no_telp,omitempty"`
 		Level        string  `json:"level"`
 		Wilayah      *string `json:"wilayah,omitempty"`
 		Cabang       *string `json:"cabang,omitempty"`
@@ -86,27 +89,28 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 
 	targetLevel := models.PengurusLevel(input.Level)
 
-	// Cek apakah level target sesuai izin admin
+	// Check role permission
 	if !canCreate(adminLevel, targetLevel) {
 		http.Error(w, "You don't have permission to create this level", http.StatusForbidden)
 		return
 	}
 
-	userID, err := primitive.ObjectIDFromHex(input.UserID)
-	if err != nil {
-		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+	// Check existing email
+	var existing models.Pengurus
+	err = db.Collection("pengurus").FindOne(context.TODO(), bson.M{"email": input.Email}).Decode(&existing)
+	if err == nil {
+		http.Error(w, "Email already registered", http.StatusConflict)
 		return
 	}
 
-	// Cek user exist
-	var user models.User
-	err = db.Collection("users").FindOne(context.TODO(), bson.M{"_id": userID}).Decode(&user)
+	// Hash password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), 12)
 	if err != nil {
-		http.Error(w, "User not found", http.StatusNotFound)
+		http.Error(w, "Error hashing password", http.StatusInternalServerError)
 		return
 	}
 
-	// Validasi data wajib sesuai level
+	// Validate mandatory fields based on level
 	switch targetLevel {
 	case models.LevelPKC:
 		if input.Wilayah == nil {
@@ -125,15 +129,16 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Create pengurus baru
+	// Insert Pengurus
 	pengurus := models.Pengurus{
-		UserID:       userID,
+		Email:        input.Email,
+		PasswordHash: string(hashedPassword),
+		NoTelp:       input.NoTelp,
 		Level:        targetLevel,
 		Wilayah:      input.Wilayah,
 		Cabang:       input.Cabang,
 		Komisariat:   input.Komisariat,
 		AlamatSekre:  input.AlamatSekre,
-		Jabatan:      "Ketua",
 		Aktif:        true,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
@@ -152,7 +157,7 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Logika izin pembuatan
+// Role permission logic
 func canCreate(admin, target models.PengurusLevel) bool {
 	switch admin {
 	case models.LevelPB:
