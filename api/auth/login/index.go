@@ -1,61 +1,65 @@
-package handler
+package main
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"os"
+	"time"
 
-	"github.com/awslabs/aws-lambda-go-api-proxy/fiberadapter"
-	"github.com/foldadjo/PMII_BE/shered/config"
 	"github.com/foldadjo/PMII_BE/shered/models"
-	"github.com/golang-jwt/jwt"
-	"golang.org/x/crypto/bcrypt"
-
-	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 )
 
-var adapter *fiberadapter.FiberLambda
+var client *mongo.Client
+var db *mongo.Database
 
 func init() {
-	config.ConnectDB()
+	mongoURI := os.Getenv("MONGODB_URI")
+	var err error
 
-	app := fiber.New()
+	client, err = mongo.Connect(context.TODO(), options.Client().ApplyURI(mongoURI))
+	if err != nil {
+		panic(err)
+	}
 
-	app.Post("/api/auth/login", Login)
-
-	// Buat adapter untuk Vercel
-	adapter = fiberadapter.New(app)
+	db = client.Database("your_db_name") // Ganti dengan nama database
 }
 
+func Handle(w http.ResponseWriter, r *http.Request) {
+	// Hanya menerima POST
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
-func Login(c *fiber.Ctx) error {
 	var input struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
 
-	if err := c.BodyParser(&input); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid input",
-		})
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, "Invalid input", http.StatusBadRequest)
+		return
 	}
 
-	// Find user
 	var user models.User
-	err := config.DB.Collection("users").FindOne(context.Background(), bson.M{"email": input.Email}).Decode(&user)
+	err := db.Collection("users").FindOne(context.TODO(), bson.M{"email": input.Email}).Decode(&user)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Invalid credentials",
-		})
+		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		return
 	}
 
 	// Verify password
 	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password))
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Invalid credentials",
-		})
+		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		return
 	}
 
 	// Generate JWT
@@ -63,28 +67,19 @@ func Login(c *fiber.Ctx) error {
 		"user_id": user.ID.Hex(),
 		"email":   user.Email,
 		"role":    user.Role,
+		"exp":     time.Now().Add(24 * time.Hour).Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Error generating token",
-		})
+		http.Error(w, "Error generating token", http.StatusInternalServerError)
+		return
 	}
 
-	return c.JSON(fiber.Map{
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
 		"token": tokenString,
-		"user": fiber.Map{
-			"id":       user.ID,
-			"email":    user.Email,
-			"full_name": user.FullName,
-			"role":     user.Role,
-		},
+		"user":  user,
 	})
-}
-
-// Exported handler untuk Vercel
-func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	adapter.ProxyWithContext(ctx, w, r)
 }

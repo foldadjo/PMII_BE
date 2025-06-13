@@ -4,62 +4,69 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"net/http"
+	"os"
 	"time"
 
-	"github.com/awslabs/aws-lambda-go-api-proxy/fiberadapter"
-	"github.com/foldadjo/PMII_BE/shered/config"
-	"github.com/foldadjo/PMII_BE/shered/models"
-	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/foldadjo/PMII_BE/shered/models"
 )
 
-var adapter *fiberadapter.FiberLambda
+// Global mongo client & db
+var client *mongo.Client
+var db *mongo.Database
 
 func init() {
-	// Connect DB sekali saat cold start
-	config.ConnectDB()
+	mongoURI := os.Getenv("MONGODB_URI")
+	var err error
 
-	// Setup Fiber
-	app := fiber.New()
+	client, err = mongo.Connect(context.TODO(), options.Client().ApplyURI(mongoURI))
+	if err != nil {
+		panic(err)
+	}
 
-	// Daftar route
-	app.Post("/api/auth/forgot-password", ForgotPasswordHandler)
-
-	// Buat adapter untuk Vercel
-	adapter = fiberadapter.New(app)
+	db = client.Database("your_db_name") // ganti dengan DB kamu
 }
 
-func ForgotPasswordHandler(c *fiber.Ctx) error {
+func Handle(w http.ResponseWriter, r *http.Request) {
+	// hanya POST
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	var input struct {
 		Email string `json:"email"`
 	}
 
-	if err := c.BodyParser(&input); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid input",
-		})
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, "Invalid input", http.StatusBadRequest)
+		return
 	}
 
-	// Find user
 	var user models.User
-	err := config.DB.Collection("users").FindOne(context.Background(), bson.M{"email": input.Email}).Decode(&user)
+	err := db.Collection("users").FindOne(context.TODO(), bson.M{"email": input.Email}).Decode(&user)
 	if err != nil {
-		return c.JSON(fiber.Map{
+		// Always return generic response to prevent email enumeration
+		json.NewEncoder(w).Encode(map[string]string{
 			"message": "If your email is registered, you will receive a password reset link",
 		})
+		return
 	}
 
 	// Generate random token
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Error generating reset token",
-		})
+		http.Error(w, "Error generating token", http.StatusInternalServerError)
+		return
 	}
 	token := hex.EncodeToString(tokenBytes)
 
-	// Save reset token
+	// Save token
 	resetToken := models.ResetPasswordToken{
 		UserID:    user.ID,
 		Token:     token,
@@ -67,19 +74,13 @@ func ForgotPasswordHandler(c *fiber.Ctx) error {
 		CreatedAt: time.Now(),
 	}
 
-	_, err = config.DB.Collection("reset_password_tokens").InsertOne(context.Background(), resetToken)
+	_, err = db.Collection("reset_password_tokens").InsertOne(context.TODO(), resetToken)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Error saving reset token",
-		})
+		http.Error(w, "Error saving token", http.StatusInternalServerError)
+		return
 	}
 
-	return c.JSON(fiber.Map{
+	json.NewEncoder(w).Encode(map[string]string{
 		"message": "If your email is registered, you will receive a password reset link",
 	})
-}
-
-// Exported handler untuk Vercel
-func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	adapter.ProxyWithContext(ctx, w, r)
 }

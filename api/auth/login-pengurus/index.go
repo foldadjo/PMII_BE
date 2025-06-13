@@ -1,73 +1,76 @@
-package handler
+package main
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"os"
+	"time"
 
-	"github.com/awslabs/aws-lambda-go-api-proxy/fiberadapter"
-	"github.com/foldadjo/PMII_BE/shered/config"
-	"github.com/foldadjo/PMII_BE/shered/models"
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/foldadjo/PMII_BE/shered/models"
 )
 
-var adapter *fiberadapter.FiberLambda
+// Global MongoDB client
+var client *mongo.Client
+var db *mongo.Database
 
 func init() {
-	config.ConnectDB()
+	mongoURI := os.Getenv("MONGODB_URI")
+	var err error
 
-	app := fiber.New()
+	client, err = mongo.Connect(context.TODO(), options.Client().ApplyURI(mongoURI))
+	if err != nil {
+		panic(err)
+	}
 
-	app.Post("/api/auth/login-pengurus", LoginPengurus)
-
-	// Buat adapter untuk Vercel
-	adapter = fiberadapter.New(app)
+	db = client.Database("your_db_name") // ganti sesuai database kamu
 }
 
+func Handle(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
-func LoginPengurus(c *fiber.Ctx) error {
 	var input struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
 
-	if err := c.BodyParser(&input); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid input",
-		})
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, "Invalid input", http.StatusBadRequest)
+		return
 	}
 
-	// Find user
 	var user models.User
-	err := config.DB.Collection("users").FindOne(context.Background(), bson.M{"email": input.Email}).Decode(&user)
+	err := db.Collection("users").FindOne(context.TODO(), bson.M{"email": input.Email}).Decode(&user)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Invalid credentials",
-		})
+		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		return
 	}
 
-	// Verify password
 	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password))
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Invalid credentials",
-		})
+		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		return
 	}
 
-	// Find active pengurus entry
+	// Cari pengurus aktif
 	var pengurus models.Pengurus
-	err = config.DB.Collection("pengurus").FindOne(context.Background(), bson.M{
+	err = db.Collection("pengurus").FindOne(context.TODO(), bson.M{
 		"user_id": user.ID,
 		"aktif":   true,
 	}).Decode(&pengurus)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "User is not an active pengurus",
-		})
+		http.Error(w, "User is not an active pengurus", http.StatusUnauthorized)
+		return
 	}
 
 	// Generate JWT
@@ -77,20 +80,22 @@ func LoginPengurus(c *fiber.Ctx) error {
 		"role":             user.Role,
 		"pengurus_level":   pengurus.Level,
 		"pengurus_jabatan": pengurus.Jabatan,
+		"exp":              time.Now().Add(24 * time.Hour).Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Error generating token",
-		})
+		http.Error(w, "Error generating token", http.StatusInternalServerError)
+		return
 	}
 
-	return c.JSON(fiber.Map{
+	// Response
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
 		"token": tokenString,
-		"user": fiber.Map{
-			"id":              user.ID,
+		"user": map[string]interface{}{
+			"id":              user.ID.Hex(),
 			"email":           user.Email,
 			"full_name":       user.FullName,
 			"role":            user.Role,
@@ -98,8 +103,4 @@ func LoginPengurus(c *fiber.Ctx) error {
 			"pengurus_jabatan": pengurus.Jabatan,
 		},
 	})
-}
-
-func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	adapter.ProxyWithContext(ctx, w, r)
 }

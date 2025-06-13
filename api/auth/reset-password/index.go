@@ -1,68 +1,75 @@
-package handler
+package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
-	"github.com/awslabs/aws-lambda-go-api-proxy/fiberadapter"
-	"github.com/foldadjo/PMII_BE/shered/config"
-	"github.com/foldadjo/PMII_BE/shered/models"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/foldadjo/PMII_BE/shered/models"
 )
 
-var adapter *fiberadapter.FiberLambda
+// Global MongoDB client
+var client *mongo.Client
+var db *mongo.Database
 
 func init() {
-	config.ConnectDB()
+	mongoURI := os.Getenv("MONGODB_URI")
+	var err error
 
-	app := fiber.New()
+	client, err = mongo.Connect(context.TODO(), options.Client().ApplyURI(mongoURI))
+	if err != nil {
+		panic(err)
+	}
 
-	app.Post("/api/auth/reset-password", ReserPassword)
-
-	// Buat adapter untuk Vercel
-	adapter = fiberadapter.New(app)
+	db = client.Database("your_db_name") // ganti sesuai database kamu
 }
 
-func ReserPassword(c *fiber.Ctx) error {
+func Handle(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	var input struct {
 		Token       string `json:"token"`
 		NewPassword string `json:"new_password"`
 	}
 
-	if err := c.BodyParser(&input); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid input",
-		})
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, "Invalid input", http.StatusBadRequest)
+		return
 	}
 
-	// Find valid reset token
+	// Cari reset token valid
 	var resetToken models.ResetPasswordToken
-	err := config.DB.Collection("reset_password_tokens").FindOne(context.Background(), bson.M{
+	err := db.Collection("reset_password_tokens").FindOne(context.TODO(), bson.M{
 		"token":      input.Token,
 		"expires_at": bson.M{"$gt": time.Now()},
 	}).Decode(&resetToken)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid or expired token",
-		})
+		http.Error(w, "Invalid or expired token", http.StatusBadRequest)
+		return
 	}
 
 	// Hash new password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.NewPassword), 12)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Error hashing password",
-		})
+		http.Error(w, "Error hashing password", http.StatusInternalServerError)
+		return
 	}
 
 	// Update user password
-	_, err = config.DB.Collection("users").UpdateOne(
-		context.Background(),
+	_, err = db.Collection("users").UpdateOne(
+		context.TODO(),
 		bson.M{"_id": resetToken.UserID},
 		bson.M{"$set": bson.M{
 			"password_hash": string(hashedPassword),
@@ -70,24 +77,19 @@ func ReserPassword(c *fiber.Ctx) error {
 		}},
 	)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Error updating password",
-		})
+		http.Error(w, "Error updating password", http.StatusInternalServerError)
+		return
 	}
 
-	// Delete used token
-	_, err = config.DB.Collection("reset_password_tokens").DeleteOne(context.Background(), bson.M{"_id": resetToken.ID})
+	// Hapus token setelah digunakan
+	_, err = db.Collection("reset_password_tokens").DeleteOne(context.TODO(), bson.M{"_id": resetToken.ID})
 	if err != nil {
-		// Log error but don't return it to user
 		log.Printf("Error deleting reset token: %v", err)
 	}
 
-	return c.JSON(fiber.Map{
+	// Success response
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
 		"message": "Password reset successful",
 	})
-} 
-
-// Exported handler untuk Vercel
-func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	adapter.ProxyWithContext(ctx, w, r)
 }

@@ -1,63 +1,69 @@
-package handler
+package main
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
+	"os"
 	"time"
 
-	"github.com/awslabs/aws-lambda-go-api-proxy/fiberadapter"
-	"github.com/foldadjo/PMII_BE/shered/config"
-	"github.com/foldadjo/PMII_BE/shered/models"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/gofiber/fiber/v2"
-	"go.mongodb.org/mongo-driver/bson"
+	"github.com/foldadjo/PMII_BE/shered/models"
 )
 
-var adapter *fiberadapter.FiberLambda
+// Global MongoDB client
+var client *mongo.Client
+var db *mongo.Database
 
 func init() {
-	config.ConnectDB()
+	mongoURI := os.Getenv("MONGODB_URI")
+	var err error
 
-	app := fiber.New()
+	client, err = mongo.Connect(context.TODO(), options.Client().ApplyURI(mongoURI))
+	if err != nil {
+		panic(err)
+	}
 
-	app.Post("/api/auth/register", Register)
-
-	// Buat adapter untuk Vercel
-	adapter = fiberadapter.New(app)
+	db = client.Database("your_db_name") // ganti sesuai database kamu
 }
 
-func Register(c *fiber.Ctx) error {
+func Handle(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	var input struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 		FullName string `json:"full_name"`
 	}
 
-	if err := c.BodyParser(&input); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid input",
-		})
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, "Invalid input", http.StatusBadRequest)
+		return
 	}
 
-	// Check if email exists
+	// Check existing user
 	var existingUser models.User
-	err := config.DB.Collection("users").FindOne(context.Background(), bson.M{"email": input.Email}).Decode(&existingUser)
+	err := db.Collection("users").FindOne(context.TODO(), bson.M{"email": input.Email}).Decode(&existingUser)
 	if err == nil {
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
-			"error": "Email already exists",
-		})
+		http.Error(w, "Email already exists", http.StatusConflict)
+		return
 	}
 
 	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), 12)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Error hashing password",
-		})
+		http.Error(w, "Error hashing password", http.StatusInternalServerError)
+		return
 	}
 
-	// Create user
 	user := models.User{
 		Email:        input.Email,
 		PasswordHash: string(hashedPassword),
@@ -68,19 +74,15 @@ func Register(c *fiber.Ctx) error {
 		UpdatedAt:    time.Now(),
 	}
 
-	result, err := config.DB.Collection("users").InsertOne(context.Background(), user)
+	result, err := db.Collection("users").InsertOne(context.TODO(), user)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Error creating user",
-		})
+		http.Error(w, "Error creating user", http.StatusInternalServerError)
+		return
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
 		"message": "User registered successfully",
 		"user_id": result.InsertedID,
 	})
-}
-
-func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	adapter.ProxyWithContext(ctx, w, r)
 }
