@@ -4,15 +4,28 @@ import (
 	"context"
 	"time"
 
+	"github.com/foldadjo/PMII_BE/shered/config"
+	"github.com/foldadjo/PMII_BE/shered/middleware"
+	"github.com/foldadjo/PMII_BE/shered/models"
+
 	"github.com/gofiber/fiber/v2"
-	"PMII_BE/config"
-	"PMII_BE/models"
-	"PMII_BE/middleware"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func CreatePengurus(c *fiber.Ctx) error {
+var app *fiber.App
+
+func init() {
+	config.ConnectDB()
+
+	app = fiber.New()
+
+	api := app.Group("/api")
+	auth := api.Group("/pengurus")
+	auth.Post("/", Handler)
+}
+
+func Handler(c *fiber.Ctx) error {
 	// Get user from context (set by auth middleware)
 	user := c.Locals("user").(*middleware.Claims)
 
