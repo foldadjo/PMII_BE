@@ -23,10 +23,9 @@ type Pengurus struct {
 	Wilayah       *string            `bson:"wilayah,omitempty" json:"wilayah,omitempty"`
 	Cabang        *string            `bson:"cabang,omitempty" json:"cabang,omitempty"`
 	Komisariat    *string            `bson:"komisariat,omitempty" json:"komisariat,omitempty"`
-	Jabatan       string             `bson:"jabatan" json:"jabatan"`
+	AlamatSekre   *string            `bson:"alamat_sekre,omitempty" json:"alamat_sekre,omitempty"`
+	Jabatan       string             `bson:"jabatan" json:"jabatan"` // otomatis Ketua
 	Aktif         bool               `bson:"aktif" json:"aktif"`
-	MulaiJabatan  time.Time          `bson:"mulai_jabatan" json:"mulai_jabatan"`
-	AkhirJabatan  time.Time          `bson:"akhir_jabatan" json:"akhir_jabatan"`
 	CreatedAt     time.Time          `bson:"created_at" json:"created_at"`
 	UpdatedAt     time.Time          `bson:"updated_at" json:"updated_at"`
-} 
+}

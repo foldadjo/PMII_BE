@@ -30,9 +30,9 @@ type User struct {
 	FullName         string             `bson:"full_name" json:"full_name"`
 	AnggotaID        *string            `bson:"anggota_id,omitempty" json:"anggota_id,omitempty"`
 	Role             UserRole           `bson:"role" json:"role"`
-	CodeKepengurusan string            `bson:"code_kepengurusan" json:"code_kepengurusan"`
-	Gender           Gender            `bson:"gender" json:"gender"`
-	BirthDay         time.Time         `bson:"birth_day" json:"birth_day"`
+	CodeKepengurusan string             `bson:"code_kepengurusan" json:"code_kepengurusan"`
+	Gender           Gender             `bson:"gender" json:"gender"`
+	BirthDay         time.Time          `bson:"birth_day" json:"birth_day"`
 	Active           bool               `bson:"active" json:"active"`
 	CreatedAt        time.Time          `bson:"created_at" json:"created_at"`
 	UpdatedAt        time.Time          `bson:"updated_at" json:"updated_at"`

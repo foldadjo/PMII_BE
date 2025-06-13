@@ -85,7 +85,7 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		"role":              user.Role,
 		"code_kepengurusan": user.CodeKepengurusan,
 		"gender":            user.Gender,
-		"birth_day":     user.BirthDay,
+		"birth_day":         user.BirthDay,
 		"active":            user.Active,
 		"created_at":        user.CreatedAt,
 		"updated_at":        user.UpdatedAt,

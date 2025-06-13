@@ -9,13 +9,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/foldadjo/PMII_BE/shered/models"
 	"github.com/golang-jwt/jwt/v5"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-
-	"github.com/foldadjo/PMII_BE/shered/models"
 )
 
 // Global MongoDB client
@@ -31,7 +30,7 @@ func init() {
 		panic(err)
 	}
 
-	db = client.Database("pmii-dev") // ganti sesuai database kamu
+	db = client.Database("pmii-dev")
 }
 
 // Middleware parsing token JWT & extract claims
@@ -69,24 +68,27 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if claims.Role != "pkn" {
-		http.Error(w, "Insufficient permissions", http.StatusForbidden)
-		return
-	}
+	adminLevel := models.PengurusLevel(claims.PengurusLevel)
 
 	var input struct {
-		UserID       string    `json:"user_id"`
-		Level        string    `json:"level"`
-		Wilayah      *string   `json:"wilayah,omitempty"`
-		Cabang       *string   `json:"cabang,omitempty"`
-		Komisariat   *string   `json:"komisariat,omitempty"`
-		Jabatan      string    `json:"jabatan"`
-		MulaiJabatan time.Time `json:"mulai_jabatan"`
-		AkhirJabatan time.Time `json:"akhir_jabatan"`
+		UserID       string  `json:"user_id"`
+		Level        string  `json:"level"`
+		Wilayah      *string `json:"wilayah,omitempty"`
+		Cabang       *string `json:"cabang,omitempty"`
+		Komisariat   *string `json:"komisariat,omitempty"`
+		AlamatSekre  *string `json:"alamat_sekre,omitempty"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, "Invalid input", http.StatusBadRequest)
+		return
+	}
+
+	targetLevel := models.PengurusLevel(input.Level)
+
+	// Cek apakah level target sesuai izin admin
+	if !canCreate(adminLevel, targetLevel) {
+		http.Error(w, "You don't have permission to create this level", http.StatusForbidden)
 		return
 	}
 
@@ -96,50 +98,43 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var users models.User
-	err = db.Collection("users").FindOne(context.TODO(), bson.M{"_id": userID}).Decode(&users)
+	// Cek user exist
+	var user models.User
+	err = db.Collection("users").FindOne(context.TODO(), bson.M{"_id": userID}).Decode(&user)
 	if err != nil {
 		http.Error(w, "User not found", http.StatusNotFound)
 		return
 	}
 
-	level := models.PengurusLevel(input.Level)
-	switch level {
-	case models.LevelPB, models.LevelPKC, models.LevelPC, models.LevelPK, models.LevelPR:
-	default:
-		http.Error(w, "Invalid pengurus level", http.StatusBadRequest)
-		return
-	}
-
-	// Validate required fields per level
-	switch level {
+	// Validasi data wajib sesuai level
+	switch targetLevel {
 	case models.LevelPKC:
 		if input.Wilayah == nil {
-			http.Error(w, "Wilayah is required for PKC level", http.StatusBadRequest)
+			http.Error(w, "Wilayah required for PKC", http.StatusBadRequest)
 			return
 		}
 	case models.LevelPC:
 		if input.Cabang == nil {
-			http.Error(w, "Cabang is required for PC level", http.StatusBadRequest)
+			http.Error(w, "Cabang required for PC", http.StatusBadRequest)
 			return
 		}
 	case models.LevelPK, models.LevelPR:
 		if input.Komisariat == nil {
-			http.Error(w, "Komisariat is required for PK/PR level", http.StatusBadRequest)
+			http.Error(w, "Komisariat required for PK/PR", http.StatusBadRequest)
 			return
 		}
 	}
 
+	// Create pengurus baru
 	pengurus := models.Pengurus{
 		UserID:       userID,
-		Level:        level,
+		Level:        targetLevel,
 		Wilayah:      input.Wilayah,
 		Cabang:       input.Cabang,
 		Komisariat:   input.Komisariat,
-		Jabatan:      input.Jabatan,
+		AlamatSekre:  input.AlamatSekre,
+		Jabatan:      "Ketua",
 		Aktif:        true,
-		MulaiJabatan: input.MulaiJabatan,
-		AkhirJabatan: input.AkhirJabatan,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
@@ -155,4 +150,20 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		"message":     "Pengurus created successfully",
 		"pengurus_id": result.InsertedID,
 	})
+}
+
+// Logika izin pembuatan
+func canCreate(admin, target models.PengurusLevel) bool {
+	switch admin {
+	case models.LevelPB:
+		return target == models.LevelPKC || target == models.LevelPC || target == models.LevelPK || target == models.LevelPR
+	case models.LevelPKC:
+		return target == models.LevelPC || target == models.LevelPK || target == models.LevelPR
+	case models.LevelPC:
+		return target == models.LevelPK || target == models.LevelPR
+	case models.LevelPK:
+		return target == models.LevelPR
+	default:
+		return false
+	}
 }
