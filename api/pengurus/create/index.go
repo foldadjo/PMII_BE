@@ -68,7 +68,7 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	adminLevel := models.PengurusLevel(claims.PengurusLevel)
+	adminLevel := models.PengurusLevel(claims.Level)
 
 	// request body struct
 	var input struct {

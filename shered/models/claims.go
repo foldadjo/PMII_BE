@@ -8,7 +8,7 @@ type Claims struct {
 	UserID          string `json:"user_id"`
 	Email           string `json:"email"`
 	Role            string `json:"role"`
-	PengurusLevel   string `json:"pengurus_level"`
+	Level           string `json:"level"`
 	PengurusJabatan string `json:"pengurus_jabatan"`
 	jwt.RegisteredClaims
 }

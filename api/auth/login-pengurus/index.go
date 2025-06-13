@@ -71,7 +71,7 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		"pengurus_id": pengurus.ID.Hex(),
 		"email":       pengurus.Email,
 		"level":       pengurus.Level,
-		"exp":         time.Now().Add(24 * time.Hour).Unix(),
+		"exp":         time.Now().Add(24 * time.Hour * 100).Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
