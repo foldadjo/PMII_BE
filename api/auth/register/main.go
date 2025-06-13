@@ -2,8 +2,10 @@ package handler
 
 import (
 	"context"
+	"net/http"
 	"time"
 
+	"github.com/awslabs/aws-lambda-go-api-proxy/fiberadapter"
 	"github.com/foldadjo/PMII_BE/shered/config"
 	"github.com/foldadjo/PMII_BE/shered/models"
 	"golang.org/x/crypto/bcrypt"
@@ -12,19 +14,20 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-var app *fiber.App
+var adapter *fiberadapter.FiberLambda
 
 func init() {
 	config.ConnectDB()
 
-	app = fiber.New()
+	app := fiber.New()
 
-	api := app.Group("/api")
-	auth := api.Group("/auth")
-	auth.Post("/register", Handler)
+	app.Post("/api/auth/register", Register)
+
+	// Buat adapter untuk Vercel
+	adapter = fiberadapter.New(app)
 }
 
-func Handler(c *fiber.Ctx) error {
+func Register(c *fiber.Ctx) error {
 	var input struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -76,4 +79,8 @@ func Handler(c *fiber.Ctx) error {
 		"message": "User registered successfully",
 		"user_id": result.InsertedID,
 	})
+}
+
+func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	adapter.ProxyWithContext(ctx, w, r)
 }

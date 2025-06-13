@@ -2,8 +2,10 @@ package handler
 
 import (
 	"context"
+	"net/http"
 	"time"
 
+	"github.com/awslabs/aws-lambda-go-api-proxy/fiberadapter"
 	"github.com/foldadjo/PMII_BE/shered/config"
 	"github.com/foldadjo/PMII_BE/shered/middleware"
 	"github.com/foldadjo/PMII_BE/shered/models"
@@ -13,19 +15,21 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-var app *fiber.App
+var adapter *fiberadapter.FiberLambda
 
 func init() {
 	config.ConnectDB()
 
-	app = fiber.New()
+	app := fiber.New()
 
-	api := app.Group("/api")
-	auth := api.Group("/pengurus")
-	auth.Post("/", Handler)
+	// Daftar route
+	app.Post("/api/pengurus", CreatePengurus)
+
+	// Buat adapter untuk Vercel
+	adapter = fiberadapter.New(app)
 }
 
-func Handler(c *fiber.Ctx) error {
+func CreatePengurus(c *fiber.Ctx) error {
 	// Get user from context (set by auth middleware)
 	user := c.Locals("user").(*middleware.Claims)
 
@@ -130,3 +134,8 @@ func Handler(c *fiber.Ctx) error {
 		"pengurus_id": result.InsertedID,
 	})
 } 
+
+// Exported handler untuk Vercel
+func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	adapter.ProxyWithContext(ctx, w, r)
+}

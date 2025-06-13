@@ -1,31 +1,36 @@
-package handler
+package main
 
 import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"net/http"
 	"time"
 
+	"github.com/awslabs/aws-lambda-go-api-proxy/fiberadapter"
 	"github.com/foldadjo/PMII_BE/shered/config"
 	"github.com/foldadjo/PMII_BE/shered/models"
-
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-var app *fiber.App
+var adapter *fiberadapter.FiberLambda
 
 func init() {
+	// Connect DB sekali saat cold start
 	config.ConnectDB()
 
-	app = fiber.New()
+	// Setup Fiber
+	app := fiber.New()
 
-	api := app.Group("/api")
-	auth := api.Group("/auth")
-	auth.Post("/forgot-password", Handler)
+	// Daftar route
+	app.Post("/api/auth/forgot-password", ForgotPasswordHandler)
+
+	// Buat adapter untuk Vercel
+	adapter = fiberadapter.New(app)
 }
 
-func Handler(c *fiber.Ctx) error {
+func ForgotPasswordHandler(c *fiber.Ctx) error {
 	var input struct {
 		Email string `json:"email"`
 	}
@@ -40,7 +45,6 @@ func Handler(c *fiber.Ctx) error {
 	var user models.User
 	err := config.DB.Collection("users").FindOne(context.Background(), bson.M{"email": input.Email}).Decode(&user)
 	if err != nil {
-		// Return success even if user not found to prevent enumeration
 		return c.JSON(fiber.Map{
 			"message": "If your email is registered, you will receive a password reset link",
 		})
@@ -70,9 +74,12 @@ func Handler(c *fiber.Ctx) error {
 		})
 	}
 
-	// In a real application, send email here
-
 	return c.JSON(fiber.Map{
 		"message": "If your email is registered, you will receive a password reset link",
 	})
+}
+
+// Exported handler untuk Vercel
+func Handler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	adapter.ProxyWithContext(ctx, w, r)
 }
