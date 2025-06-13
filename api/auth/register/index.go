@@ -38,12 +38,12 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var input struct {
-		Email            string         `json:"email"`
-		Password         string         `json:"password"`
-		FullName         string         `json:"full_name"`
-		CodeKepengurusan *string        `json:"code_kepengurusan,omitempty"`
-		Gender           *models.Gender `json:"gender,omitempty"`
-		BirthDay         *time.Time     `json:"birth_day,omitempty"`
+		Email            string        `json:"email"`
+		Password         string        `json:"password"`
+		FullName         string        `json:"full_name"`
+		CodeKepengurusan string        `json:"code_kepengurusan"`
+		Gender           models.Gender `json:"gender"`
+		BirthDay         time.Time     `json:"birth_day"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {

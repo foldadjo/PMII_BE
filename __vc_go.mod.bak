@@ -1,4 +1,4 @@
-module handler
+module github.com/foldadjo/PMII_BE
 
 go 1.21
 
@@ -9,13 +9,11 @@ require (
 	golang.org/x/crypto v0.21.0
 )
 
-require (
-	github.com/aws/aws-lambda-go v1.49.0 // indirect
-	github.com/valyala/fasthttp v1.51.0 // indirect
-)
+require github.com/valyala/fasthttp v1.51.0 // indirect
 
 require (
 	github.com/andybalholm/brotli v1.0.5 // indirect
+	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/uuid v1.5.0 // indirect
 	github.com/klauspost/compress v1.17.0 // indirect
@@ -34,10 +32,3 @@ require (
 	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 )
-
-require (
-	github.com/foldadjo/PMII_BE v0.0.0-unpublished
-	github.com/vercel/go-bridge v0.0.0-20221108222652-296f4c6bdb6d
-)
-
-replace github.com/foldadjo/PMII_BE => ./

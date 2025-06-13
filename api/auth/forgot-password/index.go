@@ -32,7 +32,7 @@ func init() {
 	db = client.Database("pmii-dev") // ganti dengan DB kamu
 }
 
-func Handle(w http.ResponseWriter, r *http.Request) {
+func Handle_api_auth_forgot_password_index_go(w http.ResponseWriter, r *http.Request) {
 	// hanya POST
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
