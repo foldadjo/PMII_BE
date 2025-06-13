@@ -32,7 +32,6 @@ func init() {
 }
 
 func Handle(w http.ResponseWriter, r *http.Request) {
-	// Hanya menerima POST
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
@@ -55,7 +54,6 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify password
 	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password))
 	if err != nil {
 		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
@@ -64,10 +62,11 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 
 	// Generate JWT
 	claims := jwt.MapClaims{
-		"user_id": user.ID.Hex(),
-		"email":   user.Email,
-		"role":    user.Role,
-		"exp":     time.Now().Add(24 * time.Hour).Unix(),
+		"user_id":           user.ID.Hex(),
+		"email":             user.Email,
+		"role":              user.Role,
+		"code_kepengurusan": user.CodeKepengurusan,
+		"exp":               time.Now().Add(24 * time.Hour).Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -77,9 +76,24 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Clean user response (jangan return password hash)
+	userResponse := map[string]interface{}{
+		"id":                user.ID.Hex(),
+		"email":             user.Email,
+		"full_name":         user.FullName,
+		"anggota_id":        user.AnggotaID,
+		"role":              user.Role,
+		"code_kepengurusan": user.CodeKepengurusan,
+		"gender":            user.Gender,
+		"birth_day":     user.BirthDay,
+		"active":            user.Active,
+		"created_at":        user.CreatedAt,
+		"updated_at":        user.UpdatedAt,
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"token": tokenString,
-		"user":  user,
+		"user":  userResponse,
 	})
 }

@@ -16,7 +16,6 @@ import (
 	"github.com/foldadjo/PMII_BE/shered/models"
 )
 
-// Global MongoDB client
 var client *mongo.Client
 var db *mongo.Database
 
@@ -29,7 +28,7 @@ func init() {
 		panic(err)
 	}
 
-	db = client.Database("pmii-dev") // ganti sesuai database kamu
+	db = client.Database("pmii-dev")
 }
 
 func Handle(w http.ResponseWriter, r *http.Request) {
@@ -39,9 +38,12 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var input struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-		FullName string `json:"full_name"`
+		Email            string         `json:"email"`
+		Password         string         `json:"password"`
+		FullName         string         `json:"full_name"`
+		CodeKepengurusan *string        `json:"code_kepengurusan,omitempty"`
+		Gender           *models.Gender `json:"gender,omitempty"`
+		BirthDay         *time.Time     `json:"birth_day,omitempty"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -49,7 +51,6 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check existing user
 	var existingUser models.User
 	err := db.Collection("users").FindOne(context.TODO(), bson.M{"email": input.Email}).Decode(&existingUser)
 	if err == nil {
@@ -57,7 +58,6 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), 12)
 	if err != nil {
 		http.Error(w, "Error hashing password", http.StatusInternalServerError)
@@ -65,13 +65,16 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := models.User{
-		Email:        input.Email,
-		PasswordHash: string(hashedPassword),
-		FullName:     input.FullName,
-		Role:         models.RoleNull,
-		Active:       true,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+		Email:            input.Email,
+		PasswordHash:     string(hashedPassword),
+		FullName:         input.FullName,
+		Role:             models.RoleNull,
+		CodeKepengurusan: input.CodeKepengurusan,
+		Gender:           input.Gender,
+		BirthDay:         input.BirthDay,
+		Active:           true,
+		CreatedAt:        time.Now(),
+		UpdatedAt:        time.Now(),
 	}
 
 	result, err := db.Collection("users").InsertOne(context.TODO(), user)
