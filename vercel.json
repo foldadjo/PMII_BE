@@ -1,7 +1,9 @@
 {
-  "version": 2,
-  "env": {
-    "MONGODB_URI": "mongodb+srv://pbpmiiit:adminpbpmiiit@cluster.lbl0pz1.mongodb.net/?retryWrites=true&w=majority&appName=Cluster",
-    "JWT_SECRET": "pmii_dev"
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "build": {
+    "env": {
+      "MONGODB_URI": "mongodb+srv://pbpmiiit:adminpbpmiiit@cluster.lbl0pz1.mongodb.net/?retryWrites=true&w=majority&appName=Cluster",
+      "JWT_SECRET": "pmii_dev"
+    }
   }
-} 
+}
